@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101114" />
+    <title>DeskForge + BeatSync</title>
+  </head>
+  <body>
+    <div id="app">
+      <aside class="sidebar">
+        <div class="brand-lockup"><div class="brand-mark"><span></span><span></span><span></span><span></span></div><div><strong>deskforge</strong><small>WORKSPACE AUDIO</small></div></div>
+        <div class="workspace-label">ESPACIO DE TRABAJO</div>
+        <nav class="primary-nav" aria-label="Navegación principal">
+          <button class="nav-item active" data-view="home"><span class="nav-icon">⌂</span>Inicio</button>
+          <button class="nav-item" data-view="notes"><span class="nav-icon">▤</span>Bloc de notas</button>
+        </nav>
+        <div class="sidebar-bottom"><div class="profile-row"><div class="avatar">J</div><div class="profile-copy"><strong>Tu escritorio</strong><small>Sesión local</small></div><span class="status-dot"></span></div></div>
+      </aside>
+
+      <main class="main-shell">
+        <header class="topbar"><div class="breadcrumbs"><span>DESKFORGE</span><span class="crumb-divider">/</span><strong id="breadcrumb-current">INICIO</strong></div><div class="topbar-actions"><div class="system-status"><span class="status-dot"></span>Todo guardado</div><button class="window-action" id="minimize-window" aria-label="Minimizar">−</button><button class="window-action close-action" id="hide-window" aria-label="Ocultar ventana">×</button></div></header>
+
+        <section class="view active-view" id="view-home">
+          <div class="welcome-row"><div><div class="eyebrow"><span class="eyebrow-line"></span> TU ESPACIO, A TU RITMO</div><h1>Buenas, <span>¿qué vamos a crear?</span></h1><p class="subheading">Un espacio simple para organizar tus ideas.</p></div><div class="date-card"><span class="date-orb">◒</span><div><small>DESKFORGE SESSION</small><strong id="session-date">TU SESIÓN DE HOY</strong></div></div></div>
+          <div class="home-grid"><section class="panel welcome-panel"><div class="panel-kicker">DESKFORGE DESKTOP</div><h2>Tu espacio de trabajo<br><span>ya está listo.</span></h2><p>Empezá capturando una idea, una nota o un pendiente. El bloc guarda tus cambios automáticamente en este dispositivo.</p><button class="primary-button" id="open-notes">Abrir bloc de notas <span>→</span></button><div class="feature-pills"><span>VENTANA ELECTRON</span><span>GUARDADO LOCAL</span><span>SESIÓN PRIVADA</span></div></section>
+            <section class="panel quick-note-panel"><div class="panel-heading"><div><span class="panel-kicker">CAPTURÁ LA IDEA</span><h2>Nota rápida</h2></div><button class="text-button" id="notes-link">Abrir bloc ↗</button></div><label class="visually-hidden" for="quick-note">Nota rápida</label><textarea id="quick-note" placeholder="Una idea, un pendiente, lo que tengas en mente…" maxlength="4000"></textarea><div class="note-footer"><span><span class="saved-check">✓</span><span id="quick-save-status">Guardado automáticamente</span></span><span id="quick-word-count">0 palabras</span></div></section>
+          </div>
+        </section>
+
+        <section class="view secondary-view" id="view-notes">
+          <div class="secondary-header"><div><div class="eyebrow"><span class="eyebrow-line"></span> IDEAS EN MARCHA</div><h1>Bloc de <span>notas</span></h1><p class="subheading">Escribí libremente. Tus cambios se guardan solos.</p></div><div class="document-actions"><button class="outline-button" id="new-note">Nueva nota</button><button class="outline-button" id="open-note">Abrir archivo</button><button class="primary-button compact-button" id="save-note">Guardar <span>↗</span></button></div></div>
+          <section class="panel editor-panel"><div class="editor-toolbar"><span class="document-dot"></span><strong id="note-document-name">Nota rápida</strong><span class="editor-saved" id="editor-saved">Guardado</span><span class="editor-spacer"></span><span class="editor-format">TEXTO PLANO · UTF-8</span></div><label class="visually-hidden" for="note-editor">Contenido de la nota</label><textarea id="note-editor" placeholder="Empezá a escribir…" spellcheck="true"></textarea><div class="editor-footer"><span>La nota rápida se guarda en este dispositivo.</span><span id="editor-word-count">0 palabras</span></div></section>
+        </section>
+
+        <footer class="app-footer"><span>DESKFORGE <i>×</i> BEATSYNC</span><span><span class="footer-live"></span> CORRIENDO EN LOCAL</span><span>MENOS RUIDO. MÁS RITMO.</span></footer>
+      </main>
+    </div>
+    <div class="toast" id="toast" role="status"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+dist-installer/
+backup/
+tmp/
+.env
+.env.*
+!.env.example
+*.log
