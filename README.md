@@ -20,6 +20,8 @@ npm run dev
 - E2: bloc de notas con apertura/guardado por diálogos y autoguardado local.
 - E3: temporizador Pomodoro con sesiones de enfoque, descansos cortos/largos y notificaciones de escritorio.
 - E4: reproductor de archivos MP3, OGG y WAV con cola, reproducción/pausa, anterior/siguiente, progreso, volumen, aleatorio y repetición.
+- E5: selección de una carpeta local o varios archivos; la cola ordena y lista las pistas MP3, OGG y WAV para reproducirlas con Howler.js.
+- E6: visualizador en Canvas conectado al audio mediante Web Audio API, con modos de barras de frecuencia y forma de onda.
 
 El reproductor usa archivos locales seleccionados por el usuario. La integración con Spotify permite buscar y mostrar canciones, pero no reproduce su audio dentro de la aplicación.
 

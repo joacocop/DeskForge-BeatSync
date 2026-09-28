@@ -1,5 +1,5 @@
 import './styles.css';
-import { Howl } from 'howler';
+import { Howl, Howler } from 'howler';
 
 const $ = (selector) => document.querySelector(selector);
 let notePathName = null;
@@ -19,6 +19,11 @@ let shuffleEnabled = false;
 let repeatMode = 0;
 let playerInterval = null;
 let volumeLevel = 0.75;
+let audioAnalyser = null;
+let frequencySamples = null;
+let waveformSamples = null;
+let visualizerMode = 'bars';
+let visualizerFrame = null;
 
 function showToast(message) {
   const toast = $('#toast');
@@ -139,7 +144,7 @@ function paintTrackList() {
   if (tracks.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'empty-library';
-    empty.innerHTML = '<div class="empty-icon">♫</div><strong>Tu música empieza acá</strong><span>Elegí archivos MP3, OGG o WAV.</span><label class="outline-button file-picker-label" for="track-input">Elegir archivos</label>';
+    empty.innerHTML = '<div class="empty-icon">♫</div><strong>Tu música empieza acá</strong><span>Elegí una carpeta o varios archivos MP3, OGG y WAV.</span><div class="empty-library-actions"><label class="outline-button file-picker-label" for="folder-input">Elegir carpeta</label><label class="outline-button file-picker-label" for="track-input">Elegir archivos</label></div>';
     list.append(empty);
     return;
   }
@@ -149,7 +154,7 @@ function paintTrackList() {
     row.type = 'button';
     row.innerHTML = `<span class="track-number">${index === currentTrackIndex && track.howl?.playing() ? '♫' : String(index + 1).padStart(2, '0')}</span><span class="track-copy"><strong></strong><small></small></span><span class="track-duration">${track.duration ? formatTime(track.duration) : '—:—'}</span>`;
     row.querySelector('strong').textContent = track.name;
-    row.querySelector('small').textContent = track.file.type || 'Archivo de audio';
+    row.querySelector('small').textContent = track.location || track.file.type || 'Archivo de audio';
     row.addEventListener('click', () => playTrack(index));
     list.append(row);
   });
@@ -165,12 +170,114 @@ function paintPlayerProgress() {
   $('#duration').textContent = formatTime(duration);
   $('#play-toggle').textContent = track.howl.playing() ? 'Ⅱ' : '▶';
   $('#play-toggle').setAttribute('aria-label', track.howl.playing() ? 'Pausar' : 'Reproducir');
-  paintTrackList();
 }
 
 function beginPlayerProgress() {
   stopPlayerProgress();
   playerInterval = window.setInterval(paintPlayerProgress, 350);
+}
+
+function ensureAudioAnalyser() {
+  if (audioAnalyser) return true;
+  if (!Howler.usingWebAudio || !Howler.ctx || !Howler.masterGain) {
+    $('#visualizer-status').textContent = 'Web Audio no está disponible en este dispositivo.';
+    return false;
+  }
+  try {
+    audioAnalyser = Howler.ctx.createAnalyser();
+    audioAnalyser.fftSize = 2048;
+    audioAnalyser.smoothingTimeConstant = 0.82;
+    frequencySamples = new Uint8Array(audioAnalyser.frequencyBinCount);
+    waveformSamples = new Uint8Array(audioAnalyser.fftSize);
+    Howler.masterGain.disconnect();
+    Howler.masterGain.connect(audioAnalyser);
+    audioAnalyser.connect(Howler.ctx.destination);
+    $('#visualizer-status').textContent = 'Analizando el sonido en tiempo real.';
+    return true;
+  } catch {
+    audioAnalyser = null;
+    $('#visualizer-status').textContent = 'No se pudo iniciar el visualizador de audio.';
+    return false;
+  }
+}
+
+function drawAudioVisualizer() {
+  visualizerFrame = window.requestAnimationFrame(drawAudioVisualizer);
+  const canvas = $('#audio-visualizer');
+  const bounds = canvas.getBoundingClientRect();
+  if (!bounds.width || !bounds.height) return;
+  const pixelRatio = Math.max(1, window.devicePixelRatio || 1);
+  const pixelWidth = Math.round(bounds.width * pixelRatio);
+  const pixelHeight = Math.round(bounds.height * pixelRatio);
+  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+  }
+  const context = canvas.getContext('2d');
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  const width = bounds.width;
+  const height = bounds.height;
+  context.clearRect(0, 0, width, height);
+  if (!audioAnalyser || !frequencySamples || !waveformSamples) {
+    context.strokeStyle = '#34372f';
+    context.lineWidth = 1;
+    context.beginPath();
+    context.moveTo(0, height / 2);
+    context.lineTo(width, height / 2);
+    context.stroke();
+    return;
+  }
+
+  if (visualizerMode === 'bars') {
+    audioAnalyser.getByteFrequencyData(frequencySamples);
+    const count = 56;
+    const gap = 4;
+    const barWidth = (width - gap * (count - 1)) / count;
+    const gradient = context.createLinearGradient(0, height, 0, 0);
+    gradient.addColorStop(0, '#8ed5ba');
+    gradient.addColorStop(1, '#d1fb73');
+    context.fillStyle = gradient;
+    for (let index = 0; index < count; index += 1) {
+      const first = Math.floor((index / count) ** 2 * frequencySamples.length);
+      const last = Math.max(first + 1, Math.floor(((index + 1) / count) ** 2 * frequencySamples.length));
+      let sum = 0;
+      for (let sample = first; sample < last; sample += 1) sum += frequencySamples[sample];
+      const average = sum / (last - first);
+      const barHeight = Math.max(2, (average / 255) * (height - 12));
+      const x = index * (barWidth + gap);
+      context.beginPath();
+      context.roundRect(x, height - barHeight, barWidth, barHeight, 3);
+      context.fill();
+    }
+    return;
+  }
+
+  audioAnalyser.getByteTimeDomainData(waveformSamples);
+  const waveGradient = context.createLinearGradient(0, 0, width, 0);
+  waveGradient.addColorStop(0, '#8ed5ba');
+  waveGradient.addColorStop(0.5, '#d1fb73');
+  waveGradient.addColorStop(1, '#8ed5ba');
+  context.beginPath();
+  context.lineWidth = 2;
+  context.strokeStyle = waveGradient;
+  context.shadowColor = '#d1fb7355';
+  context.shadowBlur = 10;
+  for (let index = 0; index < waveformSamples.length; index += 1) {
+    const x = (index / (waveformSamples.length - 1)) * width;
+    const y = (waveformSamples[index] / 128) * (height / 2);
+    if (index === 0) context.moveTo(x, y);
+    else context.lineTo(x, y);
+  }
+  context.stroke();
+  context.shadowBlur = 0;
+}
+
+function setVisualizerMode(mode) {
+  visualizerMode = mode;
+  $('#visualizer-bars').classList.toggle('active', mode === 'bars');
+  $('#visualizer-wave').classList.toggle('active', mode === 'wave');
+  $('#visualizer-bars').setAttribute('aria-pressed', String(mode === 'bars'));
+  $('#visualizer-wave').setAttribute('aria-pressed', String(mode === 'wave'));
 }
 
 function createHowl(track) {
@@ -179,7 +286,7 @@ function createHowl(track) {
   const howl = new Howl({
     src: [track.url],
     format: [extension],
-    html5: true,
+    html5: false,
     volume: volumeLevel,
     onload: () => {
       track.duration = howl.duration();
@@ -188,15 +295,18 @@ function createHowl(track) {
     },
     onplay: () => {
       if (tracks[currentTrackIndex] === track) {
-        $('#track-artist').textContent = `${track.file.type || 'Archivo local'} · Reproduciendo`;
+        $('#track-artist').textContent = `${track.location || track.file.type || 'Archivo local'} · Reproduciendo`;
+        ensureAudioAnalyser();
         beginPlayerProgress();
         paintPlayerProgress();
+        paintTrackList();
       }
     },
     onpause: () => {
       if (tracks[currentTrackIndex] === track) {
         stopPlayerProgress();
         paintPlayerProgress();
+        paintTrackList();
       }
     },
     onend: () => {
@@ -225,7 +335,7 @@ function playTrack(index) {
     tracks[currentTrackIndex]?.howl?.stop();
     currentTrackIndex = index;
     $('#track-title').textContent = track.name;
-    $('#track-artist').textContent = track.file.type || 'Archivo de audio local';
+    $('#track-artist').textContent = track.location || track.file.type || 'Archivo de audio local';
     $('#seek').value = '0';
     $('#current-time').textContent = '0:00';
     $('#duration').textContent = formatTime(track.duration);
@@ -263,16 +373,29 @@ function playPreviousTrack() {
   playTrack(previousIndex);
 }
 
-function loadAudioFiles(fileList) {
-  const files = [...fileList].filter((file) => file.type.startsWith('audio/') || /\.(mp3|ogg|wav)$/iu.test(file.name));
+function loadAudioFiles(fileList, source = 'archivos locales') {
+  const files = [...fileList]
+    .filter((file) => /\.(mp3|ogg|wav)$/iu.test(file.name))
+    .sort((left, right) => (left.webkitRelativePath || left.name).localeCompare(right.webkitRelativePath || right.name, 'es', { sensitivity: 'base' }));
   if (files.length === 0) {
-    showToast('Elegí archivos MP3, OGG o WAV.');
+    showToast('No encontré archivos MP3, OGG o WAV en esa selección.');
     return;
   }
   releaseTracks();
-  tracks = files.map((file) => ({ file, name: file.name, url: URL.createObjectURL(file), howl: null, duration: 0 }));
+  tracks = files.map((file) => {
+    const relativePath = file.webkitRelativePath || '';
+    const folder = relativePath.split('/').slice(0, -1).filter(Boolean).join(' / ');
+    return {
+      file,
+      name: file.name,
+      location: folder || (source === 'carpeta' ? 'Carpeta seleccionada' : file.type || 'Archivo local'),
+      url: URL.createObjectURL(file),
+      howl: null,
+      duration: 0,
+    };
+  });
   $('#track-title').textContent = 'Elegí una pista';
-  $('#track-artist').textContent = 'Tu cola está lista para reproducirse.';
+  $('#track-artist').textContent = `${tracks.length} pistas cargadas desde ${source}.`;
   $('#play-toggle').textContent = '▶';
   paintTrackList();
   playTrack(0);
@@ -376,16 +499,20 @@ function wireEvents() {
   $('#home-focus').addEventListener('click', () => selectView('focus'));
   $('#timer-start').addEventListener('click', toggleTimer);
   $('#timer-reset').addEventListener('click', resetTimer);
-  $('#track-input').addEventListener('change', (event) => {
+  const handleTrackSelection = (event, source) => {
     const files = [...event.currentTarget.files];
     event.currentTarget.value = '';
-    loadAudioFiles(files);
-  });
+    loadAudioFiles(files, source);
+  };
+  $('#track-input').addEventListener('change', (event) => handleTrackSelection(event, 'archivos'));
+  $('#folder-input').addEventListener('change', (event) => handleTrackSelection(event, 'carpeta'));
   $('#play-toggle').addEventListener('click', togglePlayback);
   $('#next-track').addEventListener('click', () => playNextTrack());
   $('#previous-track').addEventListener('click', playPreviousTrack);
   $('#shuffle-toggle').addEventListener('click', toggleShuffle);
   $('#repeat-toggle').addEventListener('click', cycleRepeatMode);
+  $('#visualizer-bars').addEventListener('click', () => setVisualizerMode('bars'));
+  $('#visualizer-wave').addEventListener('click', () => setVisualizerMode('wave'));
   $('#seek').addEventListener('input', (event) => {
     const track = tracks[currentTrackIndex];
     if (!track?.howl) return;
@@ -417,6 +544,7 @@ async function initialize() {
   paintTimer();
   paintTrackList();
   wireEvents();
+  drawAudioVisualizer();
   try {
     const quickNote = await window.deskforge.readQuickNote();
     $('#quick-note').value = quickNote;
