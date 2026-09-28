@@ -17,4 +17,9 @@ contextBridge.exposeInMainWorld('deskforge', {
     ipcRenderer.on('menu:action', listener);
     return () => ipcRenderer.removeListener('menu:action', listener);
   },
+  onGlobalShortcutAction: (callback) => {
+    const listener = (_event, action) => callback(action);
+    ipcRenderer.on('shortcut:action', listener);
+    return () => ipcRenderer.removeListener('shortcut:action', listener);
+  },
 });

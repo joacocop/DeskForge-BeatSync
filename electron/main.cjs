@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, Notification, dialog, ipcMain, nativeImage } = require('electron');
+const { app, BrowserWindow, Menu, Tray, Notification, dialog, ipcMain, nativeImage, globalShortcut } = require('electron');
 const { shell } = require('electron');
 const crypto = require('node:crypto');
 const http = require('node:http');
@@ -101,6 +101,25 @@ function createWindow() {
     if (!isQuitting) { event.preventDefault(); mainWindow.hide(); }
   });
   mainWindow.on('closed', () => { mainWindow = null; });
+}
+
+function registerGlobalShortcuts() {
+  const shortcuts = [
+    { accelerator: 'CommandOrControl+Shift+Space', action: 'toggle-playback' },
+    { accelerator: 'CommandOrControl+Shift+P', action: 'toggle-pomodoro' },
+  ];
+
+  shortcuts.forEach(({ accelerator, action }) => {
+    const registered = globalShortcut.register(accelerator, () => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (action === 'toggle-pomodoro') {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+      mainWindow.webContents.send('shortcut:action', action);
+    });
+    if (!registered) console.warn(`No se pudo registrar el atajo global ${accelerator}.`);
+  });
 }
 
 function registerMenu() {
@@ -290,10 +309,11 @@ app.whenReady().then(() => {
   registerIpc();
   createWindow();
   createTray();
+  registerGlobalShortcuts();
 });
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
   else { mainWindow?.show(); mainWindow?.focus(); }
 });
-app.on('before-quit', () => { isQuitting = true; });
+app.on('before-quit', () => { isQuitting = true; globalShortcut.unregisterAll(); });

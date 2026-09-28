@@ -24,6 +24,17 @@ npm run dev
 - E6: visualizador en Canvas conectado al audio mediante Web Audio API, con modos de barras de frecuencia y forma de onda.
 - E7: playlists locales que se pueden crear, renombrar, eliminar y reordenar arrastrando pistas entre playlists o dentro de una cola.
 - E8: búsqueda de canciones en Spotify Web API con OAuth Authorization Code + PKCE y acceso a cada resultado en Spotify.
+- E9: atajos globales `Ctrl+Shift+Space` para reproducir/pausar y `Ctrl+Shift+P` para iniciar/pausar Pomodoro.
+- E10: instalador de Windows x64 generado con electron-builder y NSIS.
+
+## Atajos globales
+
+- `Ctrl+Shift+Space`: alternar reproducción/pausa de la pista local.
+- `Ctrl+Shift+P`: mostrar la app, abrir Pomodoro e iniciar/pausar el temporizador.
+
+## Instalador de Windows
+
+En Windows, ejecutá `npm run package:win`. El instalador `.exe` se genera en `dist-installer/e9-e10/`; la carpeta está excluida de Git para no subir binarios grandes.
 
 El reproductor usa archivos locales seleccionados por el usuario. Las playlists y su orden se guardan localmente; al abrir la app de nuevo hay que volver a elegir la carpeta de música para recuperar acceso a esos archivos. Spotify permite buscar y mostrar canciones, pero no reproduce su audio dentro de la aplicación.
 

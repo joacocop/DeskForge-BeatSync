@@ -940,6 +940,15 @@ function wireEvents() {
     if (action === 'open-note') openNote();
     if (action === 'save-note') saveNote();
   });
+  window.deskforge.onGlobalShortcutAction((action) => {
+    if (action === 'toggle-playback') togglePlayback();
+    if (action === 'toggle-pomodoro') {
+      const wasRunning = Boolean(timerInterval);
+      selectView('focus');
+      toggleTimer();
+      showToast(wasRunning ? 'Pomodoro pausado con Ctrl+Shift+P.' : 'Pomodoro iniciado con Ctrl+Shift+P.');
+    }
+  });
 }
 
 async function initialize() {
