@@ -3,6 +3,9 @@ import { Howl, Howler } from 'howler';
 
 const $ = (selector) => document.querySelector(selector);
 const defaultPlaylist = () => ({ id: 'playlist-main', name: 'Mi música', trackIds: [] });
+const themePreferences = ['system', 'light', 'dark'];
+const colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+const equalizerBands = ['bass', 'mid', 'treble'];
 
 function readLocalValue(key, fallback) {
   try {
@@ -11,6 +14,14 @@ function readLocalValue(key, fallback) {
   } catch {
     return fallback;
   }
+}
+
+function readEqualizerSettings() {
+  const saved = readLocalValue('deskforge-equalizer', {});
+  return Object.fromEntries(equalizerBands.map((band) => {
+    const value = Number(saved?.[band]);
+    return [band, Number.isFinite(value) ? Math.max(-12, Math.min(12, value)) : 0];
+  }));
 }
 
 function readPlaylists() {
@@ -56,6 +67,63 @@ let waveformSamples = null;
 let visualizerMode = 'bars';
 let visualizerFrame = null;
 let spotifyConnected = false;
+let themePreference = readLocalValue('deskforge-theme', 'system');
+if (!themePreferences.includes(themePreference)) themePreference = 'system';
+let equalizerSettings = readEqualizerSettings();
+let equalizerFilters = null;
+
+function applyTheme() {
+  const resolvedTheme = themePreference === 'system'
+    ? (colorSchemeQuery.matches ? 'dark' : 'light')
+    : themePreference;
+  document.documentElement.dataset.theme = resolvedTheme;
+  const selector = $('#theme-preference');
+  if (selector) selector.value = themePreference;
+  const themeColor = $('meta[name="theme-color"]');
+  if (themeColor) themeColor.content = resolvedTheme === 'dark' ? '#101114' : '#f3f5ef';
+}
+
+function updateEqualizerControls() {
+  equalizerBands.forEach((band) => {
+    const slider = $(`#eq-${band}`);
+    const output = $(`#eq-${band}-value`);
+    slider.value = String(equalizerSettings[band]);
+    output.value = `${equalizerSettings[band] > 0 ? '+' : ''}${equalizerSettings[band]} dB`;
+    output.textContent = output.value;
+  });
+}
+
+function applyEqualizerSettings() {
+  if (!equalizerFilters || !Howler.ctx) return;
+  equalizerBands.forEach((band) => {
+    equalizerFilters[band].gain.setTargetAtTime(equalizerSettings[band], Howler.ctx.currentTime, 0.025);
+  });
+}
+
+function setEqualizerBand(band, rawValue) {
+  if (!equalizerBands.includes(band)) return;
+  equalizerSettings[band] = Math.max(-12, Math.min(12, Number(rawValue) || 0));
+  updateEqualizerControls();
+  applyEqualizerSettings();
+  try {
+    localStorage.setItem('deskforge-equalizer', JSON.stringify(equalizerSettings));
+  } catch {
+    showToast('No se pudo guardar la ecualización en este dispositivo.');
+  }
+}
+
+function resetEqualizer() {
+  equalizerSettings = Object.fromEntries(equalizerBands.map((band) => [band, 0]));
+  updateEqualizerControls();
+  applyEqualizerSettings();
+  try {
+    localStorage.setItem('deskforge-equalizer', JSON.stringify(equalizerSettings));
+  } catch {
+    showToast('No se pudo guardar la ecualización en este dispositivo.');
+    return;
+  }
+  showToast('Ecualizador restablecido.');
+}
 
 function getActivePlaylist() {
   return playlists.find((playlist) => playlist.id === activePlaylistId) ?? playlists[0];
@@ -424,24 +492,51 @@ function beginPlayerProgress() {
 }
 
 function ensureAudioAnalyser() {
-  if (audioAnalyser) return true;
+  if (audioAnalyser && equalizerFilters) return true;
   if (!Howler.usingWebAudio || !Howler.ctx || !Howler.masterGain) {
     $('#visualizer-status').textContent = 'Web Audio no está disponible en este dispositivo.';
     return false;
   }
+  let routingChanged = false;
   try {
-    audioAnalyser = Howler.ctx.createAnalyser();
-    audioAnalyser.fftSize = 2048;
-    audioAnalyser.smoothingTimeConstant = 0.82;
-    frequencySamples = new Uint8Array(audioAnalyser.frequencyBinCount);
-    waveformSamples = new Uint8Array(audioAnalyser.fftSize);
+    const analyser = Howler.ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0.82;
+    const filters = {
+      bass: Howler.ctx.createBiquadFilter(),
+      mid: Howler.ctx.createBiquadFilter(),
+      treble: Howler.ctx.createBiquadFilter(),
+    };
+    filters.bass.type = 'lowshelf';
+    filters.bass.frequency.value = 250;
+    filters.mid.type = 'peaking';
+    filters.mid.frequency.value = 1000;
+    filters.mid.Q.value = 1;
+    filters.treble.type = 'highshelf';
+    filters.treble.frequency.value = 4000;
     Howler.masterGain.disconnect();
-    Howler.masterGain.connect(audioAnalyser);
-    audioAnalyser.connect(Howler.ctx.destination);
+    routingChanged = true;
+    Howler.masterGain.connect(filters.bass);
+    filters.bass.connect(filters.mid);
+    filters.mid.connect(filters.treble);
+    filters.treble.connect(analyser);
+    analyser.connect(Howler.ctx.destination);
+    equalizerFilters = filters;
+    audioAnalyser = analyser;
+    frequencySamples = new Uint8Array(analyser.frequencyBinCount);
+    waveformSamples = new Uint8Array(analyser.fftSize);
+    applyEqualizerSettings();
     $('#visualizer-status').textContent = 'Analizando el sonido en tiempo real.';
     return true;
   } catch {
     audioAnalyser = null;
+    equalizerFilters = null;
+    if (routingChanged) {
+      try {
+        Howler.masterGain.disconnect();
+        Howler.masterGain.connect(Howler.ctx.destination);
+      } catch { /* El audio sigue su ruta normal si Web Audio falla. */ }
+    }
     $('#visualizer-status').textContent = 'No se pudo iniciar el visualizador de audio.';
     return false;
   }
@@ -465,7 +560,7 @@ function drawAudioVisualizer() {
   const height = bounds.height;
   context.clearRect(0, 0, width, height);
   if (!audioAnalyser || !frequencySamples || !waveformSamples) {
-    context.strokeStyle = '#34372f';
+    context.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--line').trim();
     context.lineWidth = 1;
     context.beginPath();
     context.moveTo(0, height / 2);
@@ -895,6 +990,27 @@ function wireEvents() {
   });
   $('#timer-start').addEventListener('click', toggleTimer);
   $('#timer-reset').addEventListener('click', resetTimer);
+  $('#theme-preference').addEventListener('change', (event) => {
+    themePreference = event.currentTarget.value;
+    applyTheme();
+    try {
+      localStorage.setItem('deskforge-theme', JSON.stringify(themePreference));
+    } catch {
+      showToast('No se pudo guardar el tema en este dispositivo.');
+      return;
+    }
+    const label = themePreference === 'system'
+      ? 'Tema del sistema activado.'
+      : `Tema ${themePreference === 'light' ? 'claro' : 'oscuro'} guardado.`;
+    showToast(label);
+  });
+  colorSchemeQuery.addEventListener('change', () => {
+    if (themePreference === 'system') applyTheme();
+  });
+  document.querySelectorAll('.equalizer-slider').forEach((slider) => {
+    slider.addEventListener('input', (event) => setEqualizerBand(event.currentTarget.dataset.band, event.currentTarget.value));
+  });
+  $('#equalizer-reset').addEventListener('click', resetEqualizer);
   const handleTrackSelection = (event, source) => {
     const files = [...event.currentTarget.files];
     event.currentTarget.value = '';
@@ -952,6 +1068,8 @@ function wireEvents() {
 }
 
 async function initialize() {
+  applyTheme();
+  updateEqualizerControls();
   updateDate();
   paintTimer();
   renderMusic();

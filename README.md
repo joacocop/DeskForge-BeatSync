@@ -26,6 +26,8 @@ npm run dev
 - E8: búsqueda de canciones en Spotify Web API con OAuth Authorization Code + PKCE y acceso a cada resultado en Spotify.
 - E9: atajos globales `Ctrl+Shift+Space` para reproducir/pausar y `Ctrl+Shift+P` para iniciar/pausar Pomodoro.
 - E10: instalador de Windows x64 generado con electron-builder y NSIS.
+- E11: ecualizador de bajos, medios y agudos aplicado al reproductor local mediante nodos BiquadFilter de Web Audio API.
+- E12: temas claro y oscuro, con detección del tema del sistema y persistencia de la preferencia elegida.
 
 ## Atajos globales
 
@@ -35,6 +37,8 @@ npm run dev
 ## Instalador de Windows
 
 En Windows, ejecutá `npm run package:win`. El instalador `.exe` se genera en `dist-installer/e9-e10/`; la carpeta está excluida de Git para no subir binarios grandes.
+
+El ecualizador ofrece controles de -12 a +12 dB para bajos, medios y agudos; sus valores se guardan localmente. La preferencia de apariencia se cambia desde el selector de tema de la barra superior y puede configurarse como sistema, claro u oscuro.
 
 El reproductor usa archivos locales seleccionados por el usuario. Las playlists y su orden se guardan localmente; al abrir la app de nuevo hay que volver a elegir la carpeta de música para recuperar acceso a esos archivos. Spotify permite buscar y mostrar canciones, pero no reproduce su audio dentro de la aplicación.
 
