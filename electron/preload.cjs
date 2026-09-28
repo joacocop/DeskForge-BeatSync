@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('deskforge', {
   newNote: () => ipcRenderer.send('notes:new'),
   readQuickNote: () => ipcRenderer.invoke('notes:read-quick'),
   writeQuickNote: (content) => ipcRenderer.invoke('notes:write-quick', content),
+  notify: (title, body) => ipcRenderer.send('notifications:show', { title, body }),
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   hideWindow: () => ipcRenderer.send('window:hide'),
   onMenuAction: (callback) => {

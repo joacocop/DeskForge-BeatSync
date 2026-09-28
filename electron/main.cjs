@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage } = require('electron');
+const { app, BrowserWindow, Menu, Tray, Notification, dialog, ipcMain, nativeImage } = require('electron');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 
@@ -98,6 +98,14 @@ function registerIpc() {
     return true;
   });
   ipcMain.on('notes:new', () => { currentNotePath = null; });
+  ipcMain.on('notifications:show', (_event, payload) => {
+    if (Notification.isSupported()) {
+      new Notification({
+        title: String(payload?.title ?? 'DeskForge'),
+        body: String(payload?.body ?? ''),
+      }).show();
+    }
+  });
   ipcMain.on('window:minimize', () => mainWindow?.minimize());
   ipcMain.on('window:hide', () => mainWindow?.hide());
 }
